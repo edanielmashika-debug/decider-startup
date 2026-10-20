@@ -1,11 +1,30 @@
 @import "tailwindcss";
 
+@property  --accent-base {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #7c5cff;
+}
+
+@property --accent-deep {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #3f21a8;
+}
+
 :root{
   --background: #faf7f2;
   --surface: #ffffff;
   --foreground: #1f1b2e;
-  --accent: #7c5cff;
+  --accent-base: #7c5cff;
+  --accent-deep: #3f21a8;
+  --idle: 0%;
+  --accent: color-mix(in oklab, var(--accent-deep) var(--idle), var(--accent-base));
   --radius: 1.25rem;
+  --ink: #1f1b2e;
+
+  transition: --accent-base 0.7s ease, -accent-deep 0.7s ease;
+
 }
 
 @media (prefers-color-scheme: dark) {
@@ -13,7 +32,31 @@
     --background: #14111f;
     --surface: #1f1a2e;
     --foreground: #f4f1ff;
-    --accent: #9d86ff;
+    --accent-base: #9d86ff;
+    --accent-deep: #5a3fd0;
+  }
+}
+
+/* Mood colors (Step 5). Chill uses the default purple above. */
+:root[data-mood="hyped"] {
+  --accent-base: #ff6a3d;
+  --accent-deep: #b3361b;
+}
+
+:root[data-mood="sassy"] {
+  --accent-base: #e449c8;
+  --accent-deep: #8a1f7c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-mood="hyped"] {
+    --accent-base: #ff8a65;
+    --accent-deep: #c4492a;
+  }
+
+  :root[data-mood="sassy"] {
+    --accent-base: #f06ddb;
+    --accent-deep: #9b2d8c;
   }
 }
 
@@ -24,9 +67,32 @@
   --color-accent: var(--accent);
   --radius-card: var(--radius);
   --font-sans: var(--font-geist-sans);
+  --color-ink: var(--ink);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
 }
+
+@keyframes buddy-float{
+  0%, 100%{ transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+
+}
+
+
+
+.buddy-float {
+  animation: buddy-float 3s ease-in-out infinite;
+}
+
+
+
+@media (prefers-reduced-motion: reduce) {
+  .buddy-float{
+    animation: none;
+  }
+}
+
+
