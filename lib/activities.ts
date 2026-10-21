@@ -2,13 +2,23 @@ export type TimeOfDay = "morning" | "afternoon" | "evening" | "night";
 
 export type Category = "move" | "reset" | "create" | "social" | "chill" | "learn";
 
+export type Priority = "low" | "normal" | "high";
+
 export type Activity = {
   id: string;
   emoji: string;
   text: string;
   category: Category;
   times: TimeOfDay[]; // when this activity makes sense
+  priority?: Priority; //missing = normal
+  custom?: Boolean;
+
 };
+
+export const TIMES: TimeOfDay[] = [ "morning", "afternoon", "evening", "night"];
+export const CATEGORIES: Category[] = ["move", "reset", "create", "social", "chill", "learn"];
+export const MAX_TEXT_LENGTH = 80; //longest activity text
+export const MAX_CUSTOM = 100; //most activities a user can keep
 
 const ALL: TimeOfDay[] = ["morning", "afternoon", "evening", "night"];
 

@@ -10,6 +10,8 @@ import { decide } from "@/lib/decide";
 import type { Activity } from "@/lib/activities";
 import { faceForState, type BuddyPhase } from "@/lib/buddyStates";
 import { loadState, saveState } from "@/lib/storage";
+import MyActivities from "@/components/MyActivities";
+import { buildPool } from "@/lib/pool";
 
 
 export default function Home() {
@@ -22,6 +24,10 @@ export default function Home() {
 
   const [phase, setPhase] = useState<BuddyPhase>("idle");
   const [loaded, setLoaded] = useState(false);
+  const [custom, setCustom] = useState<Activity[]>([]);
+  const [useStarter, setUseStarter] = useState(true);
+  const [view, setView] = useState<"home" | "mine">("home");
+
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
 
@@ -36,7 +42,7 @@ export default function Home() {
     setPhase("thinking");
 
     const thinkTimer = setTimeout(() => {
-      const pick = decide({ now: new Date(), recentIds });
+      const pick = decide({ now: new Date(), recentIds, pool: buildPool(custom, useStarter) });
       setActivity(pick);
       setRecentIds((ids) => [...ids, pick.id].slice(-10));
       setPhase("excited");
@@ -46,6 +52,17 @@ export default function Home() {
     }, 900);
 
     timers.current = [thinkTimer];
+  }
+
+  function saveActivity(a: Activity) {
+    setCustom((list) =>
+      list.some((x) => x.id === a.id) ? list.map((x) => (x.id === a.id ? a : x)) : [...list, a],
+    );
+  }
+
+  function deleteActivity(id: string) {
+    setCustom((list) => list.filter((x) => x.id !== id));
+    setRecentIds((ids) => ids.filter((x) => x !== id));
   }
 
   const bubbleText =
@@ -65,15 +82,32 @@ export default function Home() {
     if (saved) {
       setMoodId(saved.moodId);
       setRecentIds(saved.recentIds);
+      setCustom(saved.customActivities);
+      setUseStarter(saved.useStarter);
     }
     setLoaded(true);
   }, []);
 
+
+
   // After that: save whenever mood or recent picks change
   useEffect(() => {
     if (!loaded) return;
-    saveState({ moodId, recentIds });
-  }, [loaded, moodId, recentIds]);
+    saveState({ moodId, recentIds, customActivities: custom, useStarter });
+  }, [loaded, moodId, recentIds, custom, useStarter]);
+
+  if (view === "mine") {
+    return (
+      <MyActivities
+        activities={custom}
+        useStarter={useStarter}
+        onSave={saveActivity}
+        onDelete={deleteActivity}
+        onToggleStarter={setUseStarter}
+        onClose={() => setView("home")}
+      />
+    );
+  }
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-between px-6 py-10">
@@ -93,6 +127,13 @@ export default function Home() {
         <MoodPicker value={moodId} onChange={setMoodId} />
         <button onClick={handleDecide} className="w-full rounded-card bg-accent py-4 text-lg font-semibold text-white disabled:opacity-60" disabled={phase === "thinking"} >
           {phase === "thinking" ? "Thinking..." : "Decide for me"}
+        </button>
+
+        <button
+          onClick={() => setView("mine")}
+          className="min-h-12 w-full rounded-card bg-surface py-3 text-base font-medium"
+        >
+          ✏️ My activities
         </button>
       </footer>
     </main>
