@@ -1,4 +1,4 @@
-import { ACTIVITIES, type Activity, type TimeOfDay } from "@/lib/activities";
+import { ACTIVITIES, type Activity, type Category, type TimeOfDay } from "@/lib/activities";
 
 const RECENT_LIMIT = 3; // how many past picks are skipped
 
@@ -7,8 +7,20 @@ const RECENT_LIMIT = 3; // how many past picks are skipped
 const PRIORITY_WEIGHT = { low: 0.5, normal: 1, high: 3 };
 const OWN_BONUS = 2;
 
-export function weightOf(a: Activity): number {
-  return PRIORITY_WEIGHT[a.priority ?? "normal"] * (a.custom ? OWN_BONUS : 1);
+// How a mood bends the picking (see moods.ts):
+// - bias: chance multiplier per kind of activity (missing = 1)
+// - priorityPower: how much priority counts. 1 = normal, below 1 = softer,
+//   above 1 = stricter (high gets much more likely, low much less)
+export type Tuning = {
+  bias: Partial<Record<Category, number>>;
+  priorityPower: number;
+};
+
+export const NEUTRAL: Tuning = { bias: {}, priorityPower: 1 };
+
+export function weightOf(a: Activity, tuning: Tuning = NEUTRAL): number {
+  const priority = PRIORITY_WEIGHT[a.priority ?? "normal"] ** tuning.priorityPower;
+  return priority * (a.custom ? OWN_BONUS : 1) * (tuning.bias[a.category] ?? 1);
 }
 
 export function getTimeOfDay(date: Date): TimeOfDay {
@@ -19,11 +31,11 @@ export function getTimeOfDay(date: Date): TimeOfDay {
   return "night";
 }
 
-function pickWeighted(list: Activity[], random: () => number): Activity {
-  const total = list.reduce((sum, a) => sum + weightOf(a), 0);
+function pickWeighted(list: Activity[], random: () => number, tuning: Tuning): Activity {
+  const total = list.reduce((sum, a) => sum + weightOf(a, tuning), 0);
   let r = random() * total;
   for (const a of list) {
-    r -= weightOf(a);
+    r -= weightOf(a, tuning);
     if (r < 0) return a;
   }
   return list[list.length - 1]; // only reached through rounding
@@ -33,6 +45,7 @@ type DecideInput = {
   now: Date;
   recentIds: string[]; // past picks, newest last
   pool?: Activity[]; // what to pick from (default: the starter list)
+  tuning?: Tuning; // the buddy mood's way of picking (default: neutral)
   random?: () => number; // swap this out when testing
 };
 
@@ -40,6 +53,7 @@ export function decide({
   now,
   recentIds,
   pool = ACTIVITIES,
+  tuning = NEUTRAL,
   random = Math.random,
 }: DecideInput): Activity {
   const source = pool.length > 0 ? pool : ACTIVITIES;
@@ -61,6 +75,6 @@ export function decide({
   // 4. use the narrowest list that still has something in it
   const candidates = varied.length > 0 ? varied : fresh.length > 0 ? fresh : fits;
 
-  // 5. weighted random choice (priority and own-activity bonus)
-  return pickWeighted(candidates, random);
+  // 5. weighted random choice (priority, own-activity bonus, mood tuning)
+  return pickWeighted(candidates, random, tuning);
 }

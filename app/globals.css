@@ -95,4 +95,24 @@ body {
   }
 }
 
+@keyframes bubble-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+.bubble-in { animation: bubble-in 0.4s ease-out; }
+.sheet-in { animation: sheet-in 0.25s ease-out; }
+.menu-in { animation: menu-in 0.15s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble-in, .sheet-in, .menu-in { animation: none; }
+}
+
 

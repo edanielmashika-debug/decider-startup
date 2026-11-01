@@ -1,3 +1,5 @@
+import type { Tuning } from "@/lib/decide";
+
 export type MoodId = "chill" | "hyped" | "sassy";
 
 export type Face = {
@@ -13,8 +15,11 @@ export type Mood = {
   id: MoodId;
   label: string;
   emoji: string;
-  line: string;
+  line: string; // shown for a moment before the rotating lines load (lines.ts)
+  purpose: string; // one short line under the mood name on the Home screen
+  detail: string; // what the mood does, shown in the mood picker
   face: Face;
+  tuning: Tuning; // how this mood bends the picking
 };
 
 export const MOODS: Mood[] = [
@@ -23,6 +28,13 @@ export const MOODS: Mood[] = [
     label: "Chill",
     emoji: "😌",
     line: "No rush. Let's see what feels right.",
+    purpose: "Gentle, low-effort picks",
+    detail:
+      "For tired or overwhelmed moments. Calm, easy things, and priorities count less so nothing nags you.",
+    tuning: {
+      bias: { chill: 3, reset: 1, learn: 1, create: 1, social: 0.6, move: 0.5 },
+      priorityPower: 0.5,
+    },
     face: {
       eyeRy: 11,
       blinkSeconds: 3,
@@ -37,6 +49,13 @@ export const MOODS: Mood[] = [
     label: "Hyped",
     emoji: "🤩",
     line: "Let's GOOO! Press the button!",
+    purpose: "Active, get-moving picks",
+    detail:
+      "For when you want momentum. Movement, creating and people, and fewer sleepy things.",
+    tuning: {
+      bias: { move: 3, social: 2, create: 2, learn: 1, reset: 1, chill: 0.3 },
+      priorityPower: 1,
+    },
     face: {
       eyeRy: 14,
       blinkSeconds: 2,
@@ -51,6 +70,13 @@ export const MOODS: Mood[] = [
     label: "Sassy",
     emoji: "😏",
     line: "Oh, you can't decide? Shocking.",
+    purpose: "Tough love, no excuses",
+    detail:
+      "For when you're avoiding things. Pushes chores and learning, and your High priority activities count extra.",
+    tuning: {
+      bias: { reset: 2.5, learn: 2, move: 1.5, create: 1, social: 1, chill: 0.4 },
+      priorityPower: 1.5,
+    },
     face: {
       eyeRy: 11,
       blinkSeconds: 4.5,
