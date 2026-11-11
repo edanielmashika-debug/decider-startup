@@ -1,6 +1,7 @@
 import { MOODS, DEFAULT_MOOD, type MoodId } from "@/lib/moods";
 import { ACTIVITIES, MAX_CUSTOM, type Activity } from "@/lib/activities";
 import { sanitizeActivity } from "@/lib/pool";
+import { MAX_PROJECTS, sanitizeProject, type Project } from "@/lib/projects";
 
 // One key for everything the app remembers. "v1" lets us change the shape later.
 const KEY = "decider:v1";
@@ -10,6 +11,7 @@ export type SavedState = {
   recentIds: string[];
   customActivities: Activity[]; // the user's own activities (Step 8b)
   useStarter: boolean; // also pick from the starter list?
+  projects: Project[]; // big tasks split into steps (Step 8d)
 };
 
 // Reads what was saved. Returns null when nothing usable is there.
@@ -48,7 +50,20 @@ export function loadState(): SavedState | null {
 
     const useStarter = typeof data?.useStarter === "boolean" ? data.useStarter : true;
 
-    return { moodId, recentIds, customActivities, useStarter };
+    // projects (Step 8d): each one is checked, duplicates and unusable ones are dropped
+    const projects: Project[] = [];
+    const seenProjects = new Set<string>();
+    if (Array.isArray(data?.projects)) {
+      for (const item of data.projects) {
+        const p = sanitizeProject(item);
+        if (!p || seenProjects.has(p.id)) continue;
+        seenProjects.add(p.id);
+        projects.push(p);
+        if (projects.length >= MAX_PROJECTS) break;
+      }
+    }
+
+    return { moodId, recentIds, customActivities, useStarter, projects };
   } catch {
     return null; // blocked storage or corrupt data: just start fresh
   }

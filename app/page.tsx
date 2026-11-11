@@ -5,10 +5,12 @@ import Buddy from "@/components/Buddy";
 import MenuButton from "@/components/MenuButton";
 import MoodPicker from "@/components/MoodPicker";
 import MyActivities from "@/components/MyActivities";
+import Projects from "@/components/Projects";
 import { useIdleColor } from "@/hooks/useIdleColor";
 import { MOODS, DEFAULT_MOOD, type MoodId } from "@/lib/moods";
 import { decide } from "@/lib/decide";
 import type { Activity } from "@/lib/activities";
+import type { Project } from "@/lib/projects";
 import { buildPool } from "@/lib/pool";
 import { loadState, saveState } from "@/lib/storage";
 import { faceForState, type BuddyPhase } from "@/lib/buddyStates";
@@ -23,7 +25,8 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
   const [custom, setCustom] = useState<Activity[]>([]);
   const [useStarter, setUseStarter] = useState(true);
-  const [view, setView] = useState<"home" | "mine">("home");
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [view, setView] = useState<"home" | "mine" | "projects">("home");
   const [now, setNow] = useState<Date | null>(null); // set after the page loads
   const [tick, setTick] = useState(0); // counts up so the waiting line changes
   const [thinkingText, setThinkingText] = useState("");
@@ -43,6 +46,7 @@ export default function Home() {
       setRecentIds(saved.recentIds);
       setCustom(saved.customActivities);
       setUseStarter(saved.useStarter);
+      setProjects(saved.projects);
     }
     setNow(new Date());
     setTick(Math.floor(Math.random() * 1000)); // start on a different line each visit
@@ -52,8 +56,8 @@ export default function Home() {
   // After that: save whenever something saved changes
   useEffect(() => {
     if (!loaded) return;
-    saveState({ moodId, recentIds, customActivities: custom, useStarter });
-  }, [loaded, moodId, recentIds, custom, useStarter]);
+    saveState({ moodId, recentIds, customActivities: custom, useStarter, projects });
+  }, [loaded, moodId, recentIds, custom, useStarter, projects]);
 
   // While the buddy is just waiting, change its line every 8 seconds
   useEffect(() => {
@@ -104,6 +108,27 @@ export default function Home() {
     setRecentIds((ids) => ids.filter((x) => x !== id));
   }
 
+  function saveProject(p: Project) {
+    setProjects((list) =>
+      list.some((x) => x.id === p.id) ? list.map((x) => (x.id === p.id ? p : x)) : [...list, p],
+    );
+  }
+
+  function deleteProject(id: string) {
+    setProjects((list) => list.filter((x) => x.id !== id));
+  }
+
+  if (view === "projects") {
+    return (
+      <Projects
+        projects={projects}
+        onSave={saveProject}
+        onDelete={deleteProject}
+        onClose={() => setView("home")}
+      />
+    );
+  }
+
   if (view === "mine") {
     return (
       <MyActivities
@@ -139,7 +164,7 @@ export default function Home() {
         <MenuButton
           items={[
             { icon: "✏️", label: "My activities", onSelect: () => setView("mine") },
-            { icon: "📋", label: "Projects", hint: "soon", disabled: true },
+            { icon: "📋", label: "Projects", onSelect: () => setView("projects") },
             { icon: "⏰", label: "Reminders", hint: "soon", disabled: true },
           ]}
         />
