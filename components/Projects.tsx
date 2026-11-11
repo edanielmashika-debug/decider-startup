@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   DAILY_CHOICES,
+  MAX_DESCRIPTION,
   MAX_CHUNKS,
   MAX_PROJECTS,
   MAX_TITLE_LENGTH,
@@ -156,7 +157,7 @@ function NewProject({
 }) {
   const todayKey = dateKey(new Date());
   const [title, setTitle] = useState("");
-  const [emoji, setEmoji] = useState("📋");
+  const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState(addDays(todayKey, 7));
   const [dailyMin, setDailyMin] = useState(60);
   const [templateId, setTemplateId] = useState<string>("blank");
@@ -170,8 +171,9 @@ function NewProject({
     const template = TEMPLATES.find((t) => t.id === templateId);
     const clean = sanitizeProject({
       id: newProjectId(),
-      emoji,
+      emoji: template?.emoji ?? "📋",
       title,
+      description,
       deadline,
       dailyMin,
       mixIn: false,
@@ -198,23 +200,24 @@ function NewProject({
         </button>
       </header>
 
-      <div className="flex gap-3">
-        <input
-          value={emoji}
-          onChange={(e) => setEmoji(e.target.value)}
-          maxLength={8}
-          aria-label="Emoji"
-          className={`${inputClass} w-20 text-center`}
-        />
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          maxLength={MAX_TITLE_LENGTH}
-          placeholder="What is the big task?"
-          aria-label="Project name"
-          className={inputClass}
-        />
-      </div>
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        maxLength={MAX_TITLE_LENGTH}
+        placeholder="Title Of Project"
+        aria-label="Title of project"
+        className={inputClass}
+      />
+
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        maxLength={MAX_DESCRIPTION}
+        rows={4}
+        placeholder="Describe the project (optional)"
+        aria-label="Project description"
+        className={`${inputClass} resize-none`}
+      />
 
       <label className="flex flex-col gap-2">
         <span className="text-sm opacity-70">Deadline</span>
@@ -243,25 +246,42 @@ function NewProject({
       </label>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-sm opacity-70">Start from</legend>
-        <div className="flex flex-col gap-2">
-          {[{ id: "blank", emoji: "🆕", label: "Blank, I'll add my own steps" }, ...TEMPLATES].map(
-            (t) => (
-              <button
-                key={t.id}
-                type="button"
-                aria-pressed={templateId === t.id}
-                onClick={() => setTemplateId(t.id)}
-                className={`min-h-12 rounded-card px-4 text-left ${
-                  templateId === t.id ? "bg-accent text-white" : "bg-surface"
-                }`}
-              >
+        <legend className="mb-1 font-semibold">Break it into steps</legend>
+        <p className="text-sm opacity-70">
+          A step is one small piece of the big task, like "Read chapter 3". The buddy spreads your
+          steps over the days until the deadline. Pick a ready-made set of steps to begin with, or
+          start empty and write your own. You can change, add or delete steps afterwards.
+        </p>
+        <div className="mt-1 flex flex-col gap-2">
+          {[
+            { id: "blank", emoji: "✍️", label: "Start empty", note: "I'll write my own steps", count: 0, min: 0 },
+            ...TEMPLATES.map((t) => ({
+              id: t.id,
+              emoji: t.emoji,
+              label: t.label,
+              note: "",
+              count: t.steps.length,
+              min: t.steps.reduce((sum, x) => sum + x.estimateMin, 0),
+            })),
+          ].map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              aria-pressed={templateId === t.id}
+              onClick={() => setTemplateId(t.id)}
+              className={`flex min-h-14 flex-col justify-center rounded-card px-4 py-2 text-left ${
+                templateId === t.id ? "bg-accent text-white" : "bg-surface"
+              }`}
+            >
+              <span className="font-medium">
                 {t.emoji} {t.label}
-              </button>
-            ),
-          )}
+              </span>
+              <span className="text-xs opacity-80">
+                {t.count > 0 ? `${t.count} ready-made steps · about ${minutesText(t.min)} in all` : t.note}
+              </span>
+            </button>
+          ))}
         </div>
-        <p className="text-sm opacity-70">You can change every step afterwards.</p>
       </fieldset>
 
       {error && <p className="text-sm font-medium">⚠️ {error}</p>}
@@ -374,6 +394,12 @@ function ProjectDetail({
         </button>
       </header>
 
+      {project.description && (
+        <p className="whitespace-pre-wrap rounded-card bg-surface p-4 text-sm">
+          {project.description}
+        </p>
+      )}
+
       <section className="flex flex-col gap-2 rounded-card bg-surface p-4">
         <span className="h-2 w-full overflow-hidden rounded-full bg-background">
           <span className="block h-full bg-accent" style={{ width: `${pct}%` }} />
@@ -460,6 +486,15 @@ function ProjectDetail({
 
       <section className="flex flex-col gap-3 rounded-card bg-surface p-4">
         <h2 className="font-semibold">Settings</h2>
+        <label className="flex flex-col gap-2">
+          <span className="text-sm opacity-70">Description</span>
+          <textarea
+            value={project.description}
+            onChange={(e) => onChange({ ...project, description: e.target.value.slice(0, MAX_DESCRIPTION) })}
+            rows={3}
+            className={`${inputClass} resize-none`}
+          />
+        </label>
         <label className="flex flex-col gap-2">
           <span className="text-sm opacity-70">Deadline</span>
           <input
