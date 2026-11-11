@@ -12,6 +12,7 @@ export type Project = {
   id: string;
   emoji: string;
   title: string;
+  description: string; // optional notes about the project (A-012)
   deadline: string; // "YYYY-MM-DD", your local date
   dailyMin: number; // how many minutes a day you can give it
   mixIn: boolean; // Step 8d.B: should today's steps also appear in "Decide for me"?
@@ -21,6 +22,7 @@ export type Project = {
 export const MAX_PROJECTS = 20;
 export const MAX_CHUNKS = 60; // per project
 export const MAX_TITLE_LENGTH = 60;
+export const MAX_DESCRIPTION = 500;
 export const MAX_CHUNK_TEXT = 80;
 export const MIN_ESTIMATE = 5;
 export const MAX_ESTIMATE = 240;
@@ -120,6 +122,8 @@ export function sanitizeProject(x: unknown): Project | null {
   if (typeof p.id !== "string" || p.id === "" || title === "") return null;
   if (!isValidDateKey(p.deadline)) return null;
 
+  const description =
+    typeof p.description === "string" ? p.description.trim().slice(0, MAX_DESCRIPTION) : "";
   const emoji =
     typeof p.emoji === "string" && p.emoji.trim() !== ""
       ? [...p.emoji.trim()].slice(0, 8).join("")
@@ -141,7 +145,7 @@ export function sanitizeProject(x: unknown): Project | null {
     }
   }
 
-  return { id: p.id, emoji, title, deadline: p.deadline, dailyMin, mixIn: p.mixIn === true, chunks };
+  return { id: p.id, emoji, title, description, deadline: p.deadline, dailyMin, mixIn: p.mixIn === true, chunks };
 }
 
 // Turns pasted text into steps: one step per line.
