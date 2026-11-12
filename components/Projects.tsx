@@ -15,7 +15,7 @@ import {
   sanitizeProject,
   type Project,
 } from "@/lib/projects";
-import { addDays, dateKey, planProject, progressOf } from "@/lib/planner";
+import { addDays, dateKey, nextChunk, planProject, progressOf } from "@/lib/planner";
 
 type Props = {
   projects: Project[];
@@ -107,8 +107,9 @@ export default function Projects({ projects, onSave, onDelete, onClose }: Props)
           let status: string;
           if (p.chunks.length === 0) status = "No steps yet";
           else if (plan.finished) status = "All done 🎉";
-          else if (plan.overdue) status = "Past the deadline";
-          else if (!plan.fits) status = "Won't fit, see plan";
+          else if (plan.overdue) status = "⚠️ Past the deadline";
+          else if (plan.crunch) status = "🔥 Behind";
+          else if (plan.pressure === "tight") status = "⏰ Tight";
           else status = `${plan.daysLeft} day${plan.daysLeft === 1 ? "" : "s"} left`;
           return (
             <li key={p.id}>
@@ -176,7 +177,7 @@ function NewProject({
       description,
       deadline,
       dailyMin,
-      mixIn: false,
+      mixIn: true, // new projects join "Decide for me" (you can switch it off in Settings)
       chunks: (template?.steps ?? []).map((s) => ({
         id: newChunkId(),
         text: s.text,
@@ -312,6 +313,7 @@ function ProjectDetail({
   const plan = planProject(project, today);
   const pct = Math.round(progressOf(project) * 100);
   const doneChunks = project.chunks.filter((c) => c.done);
+  const next = nextChunk(project);
 
   const [stepsText, setStepsText] = useState("");
   const [error, setError] = useState("");
@@ -413,16 +415,41 @@ function ProjectDetail({
         )}
         {plan.overdue && (
           <p className="text-sm font-medium">
-            ⚠️ The deadline has passed. Move it with the date below, or finish what you can today.
+            ⚠️ The deadline has passed. Every unfinished step is on today. Move the deadline below
+            if you got more time.
           </p>
         )}
-        {!plan.overdue && !plan.fits && (
+        {plan.crunch && !plan.overdue && (
           <p className="text-sm font-medium">
-            ⚠️ {plan.overflow.length} step{plan.overflow.length === 1 ? "" : "s"} won't fit before
-            the deadline. Give it more minutes a day, move the deadline, or cut a step.
+            🔥 You are behind. Finishing by the deadline needs about{" "}
+            {minutesText(plan.neededPerDay)} a day (you set {minutesText(project.dailyMin)}). The
+            plan below squeezes the steps into the days left. If that is too much, move the
+            deadline or delete a step.
           </p>
+        )}
+        {plan.pressure === "tight" && (
+          <p className="text-sm font-medium">⏰ Tight: little time to spare. Keep going.</p>
         )}
       </section>
+
+      {next && (
+        <section className="flex items-center gap-3 rounded-card bg-accent p-4 text-white">
+          <span className="flex-1">
+            <span className="block text-xs font-medium uppercase tracking-wide opacity-80">
+              Next up
+            </span>
+            {next.text}
+            <span className="block text-xs opacity-80">{minutesText(next.estimateMin)}</span>
+          </span>
+          <button
+            onClick={() => toggleDone(next.id)}
+            aria-label={`Mark done: ${next.text}`}
+            className="min-h-12 shrink-0 rounded-card bg-white/20 px-4 font-semibold"
+          >
+            ✓ Done
+          </button>
+        </section>
+      )}
 
       {project.chunks.length === 0 && (
         <p className="rounded-card bg-surface p-4 text-sm">
@@ -437,21 +464,15 @@ function ProjectDetail({
             <div key={day.date} className="flex flex-col gap-2">
               <h3 className="text-sm font-medium opacity-80">
                 {dayLabel(day.date, todayKey)} · {minutesText(day.minutes)}
+                {day.minutes > project.dailyMin &&
+                  !day.chunks.every((c) => c.estimateMin > project.dailyMin) &&
+                  " · over your daily time"}
               </h3>
               <ul className="flex flex-col gap-2">
                 {day.chunks.map((c) => row(c.id, c.text, c.estimateMin, false))}
               </ul>
             </div>
           ))}
-        </section>
-      )}
-
-      {plan.overflow.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <h2 className="font-semibold">Doesn't fit yet</h2>
-          <ul className="flex flex-col gap-2">
-            {plan.overflow.map((c) => row(c.id, c.text, c.estimateMin, false))}
-          </ul>
         </section>
       )}
 
@@ -520,6 +541,19 @@ function ProjectDetail({
               ))}
           </select>
         </label>
+        <label className="flex min-h-12 items-center gap-3 rounded-card bg-background px-4">
+          <input
+            type="checkbox"
+            checked={project.mixIn}
+            onChange={(e) => onChange({ ...project, mixIn: e.target.checked })}
+            className="size-5"
+          />
+          <span>Suggest today's steps in "Decide for me"</span>
+        </label>
+        <p className="text-sm opacity-70">
+          On: today's steps get picked more often, and a lot more as the deadline gets close or you
+          fall behind. Off: the steps stay private in here.
+        </p>
         <p className="text-sm opacity-70">
           The plan updates by itself: finish a step early and the rest move up, skip a day and the
           rest spread over the days left. With 3 or more days, the deadline day stays free as a

@@ -20,7 +20,7 @@ export const NEUTRAL: Tuning = { bias: {}, priorityPower: 1 };
 
 export function weightOf(a: Activity, tuning: Tuning = NEUTRAL): number {
   const priority = PRIORITY_WEIGHT[a.priority ?? "normal"] ** tuning.priorityPower;
-  return priority * (a.custom ? OWN_BONUS : 1) * (tuning.bias[a.category] ?? 1);
+  return priority * (a.custom ? OWN_BONUS : 1) * (tuning.bias[a.category] ?? 1) * (a.boost ?? 1);
 }
 
 export function getTimeOfDay(date: Date): TimeOfDay {

@@ -10,15 +10,17 @@ export type Activity = {
   text: string;
   category: Category;
   times: TimeOfDay[]; // when this activity makes sense
-  priority?: Priority; //missing = normal
-  custom?: Boolean;
-
+  priority?: Priority; // missing = "normal"
+  custom?: boolean; // true = made by the user, not from the starter list
+  boost?: number; // extra chance multiplier (project steps near their deadline), missing = 1
+  stepOf?: { projectId: string; chunkId: string }; // set when this is a project step
 };
 
-export const TIMES: TimeOfDay[] = [ "morning", "afternoon", "evening", "night"];
+// Lists the form and the saved-data checks use
+export const TIMES: TimeOfDay[] = ["morning", "afternoon", "evening", "night"];
 export const CATEGORIES: Category[] = ["move", "reset", "create", "social", "chill", "learn"];
-export const MAX_TEXT_LENGTH = 80; //longest activity text
-export const MAX_CUSTOM = 100; //most activities a user can keep
+export const MAX_TEXT_LENGTH = 80; // longest activity text
+export const MAX_CUSTOM = 100; // most activities a user can keep
 
 const ALL: TimeOfDay[] = ["morning", "afternoon", "evening", "night"];
 

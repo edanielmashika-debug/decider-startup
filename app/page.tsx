@@ -12,6 +12,8 @@ import { decide } from "@/lib/decide";
 import type { Activity } from "@/lib/activities";
 import type { Project } from "@/lib/projects";
 import { buildPool } from "@/lib/pool";
+import { stepActivities } from "@/lib/projectPool";
+import { topAlert } from "@/lib/planner";
 import { loadState, saveState } from "@/lib/storage";
 import { faceForState, type BuddyPhase } from "@/lib/buddyStates";
 import { idleLineFor, thinkingLineFor, leadLineFor } from "@/lib/lines";
@@ -31,6 +33,7 @@ export default function Home() {
   const [tick, setTick] = useState(0); // counts up so the waiting line changes
   const [thinkingText, setThinkingText] = useState("");
   const [leadText, setLeadText] = useState("");
+  const [doneNote, setDoneNote] = useState(""); // shown after you finish a project step
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const mood = MOODS.find((m) => m.id === moodId) ?? MOODS[0];
 
@@ -76,6 +79,7 @@ export default function Home() {
   function handleDecide() {
     if (phase === "thinking") return;
     timers.current.forEach(clearTimeout);
+    setDoneNote("");
     setThinkingText(thinkingLineFor(moodId));
     setPhase("thinking");
 
@@ -83,7 +87,7 @@ export default function Home() {
       const pick = decide({
         now: new Date(),
         recentIds,
-        pool: buildPool(custom, useStarter),
+        pool: buildPool(custom, useStarter, stepActivities(projects, new Date())),
         tuning: mood.tuning,
       });
       setActivity(pick);
@@ -106,6 +110,23 @@ export default function Home() {
   function deleteActivity(id: string) {
     setCustom((list) => list.filter((x) => x.id !== id));
     setRecentIds((ids) => ids.filter((x) => x !== id));
+  }
+
+  // "I did it" on a picked project step: tick it off and say well done
+  function finishStep(a: Activity) {
+    const ref = a.stepOf;
+    if (!ref) return;
+    setProjects((list) =>
+      list.map((p) =>
+        p.id === ref.projectId
+          ? { ...p, chunks: p.chunks.map((c) => (c.id === ref.chunkId ? { ...c, done: true } : c)) }
+          : p,
+      ),
+    );
+    setActivity(null);
+    setDoneNote("Nice! ✅ One step closer.");
+    const t = setTimeout(() => setDoneNote(""), 6000);
+    timers.current.push(t);
   }
 
   function saveProject(p: Project) {
@@ -147,12 +168,17 @@ export default function Home() {
   let bubbleMain: string;
   if (phase === "thinking") {
     bubbleMain = thinkingText;
+  } else if (doneNote) {
+    bubbleMain = doneNote;
   } else if (activity) {
     bubbleLead = leadText;
     bubbleMain = `${activity.emoji} ${activity.text}`;
   } else {
     bubbleMain = now ? idleLineFor(moodId, now, tick) : mood.line;
   }
+
+  // The most pressing project deadline (behind, overdue, or tight and close)
+  const alert = loaded ? topAlert(projects, new Date()) : null;
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col px-5 pb-6 pt-5">
@@ -170,6 +196,17 @@ export default function Home() {
         />
       </header>
 
+      {alert && (
+        <button
+          onClick={() => setView("projects")}
+          className={`mt-4 min-h-12 rounded-card px-4 py-2 text-left text-sm font-medium ${
+            alert.level === "urgent" ? "bg-accent text-white" : "bg-surface"
+          }`}
+        >
+          {alert.text}
+        </button>
+      )}
+
       <section className="flex flex-1 flex-col items-center justify-center gap-6 py-6">
         <Buddy face={faceForState(mood.face, phase)} state={phase} />
         <div
@@ -183,6 +220,14 @@ export default function Home() {
           )}
           <p className="text-lg leading-snug">{bubbleMain}</p>
         </div>
+        {activity?.stepOf && phase !== "thinking" && !doneNote && (
+          <button
+            onClick={() => finishStep(activity)}
+            className="min-h-12 rounded-card bg-surface px-6 font-semibold shadow-sm"
+          >
+            ✅ I did it
+          </button>
+        )}
       </section>
 
       <footer className="flex flex-col gap-3">
