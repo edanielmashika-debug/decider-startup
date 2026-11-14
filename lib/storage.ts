@@ -1,6 +1,7 @@
 import { MOODS, DEFAULT_MOOD, type MoodId } from "@/lib/moods";
 import { ACTIVITIES, MAX_CUSTOM, type Activity } from "@/lib/activities";
 import { sanitizeActivity } from "@/lib/pool";
+import { sanitizeStats, type Stats } from "@/lib/learn";
 import { MAX_PROJECTS, sanitizeProject, type Project } from "@/lib/projects";
 
 // One key for everything the app remembers. "v1" lets us change the shape later.
@@ -12,6 +13,7 @@ export type SavedState = {
   customActivities: Activity[]; // the user's own activities (Step 8b)
   useStarter: boolean; // also pick from the starter list?
   projects: Project[]; // big tasks split into steps (Step 8d)
+  stats: Stats; // what you did and skipped, per activity id (Step 8c)
 };
 
 // Reads what was saved. Returns null when nothing usable is there.
@@ -63,7 +65,9 @@ export function loadState(): SavedState | null {
       }
     }
 
-    return { moodId, recentIds, customActivities, useStarter, projects };
+    const stats = sanitizeStats(data?.stats, known);
+
+    return { moodId, recentIds, customActivities, useStarter, projects, stats };
   } catch {
     return null; // blocked storage or corrupt data: just start fresh
   }

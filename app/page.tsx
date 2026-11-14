@@ -14,6 +14,7 @@ import type { Project } from "@/lib/projects";
 import { buildPool } from "@/lib/pool";
 import { stepActivities } from "@/lib/projectPool";
 import { topAlert } from "@/lib/planner";
+import { canTrack, forget, record, type Stats } from "@/lib/learn";
 import { loadState, saveState } from "@/lib/storage";
 import { faceForState, type BuddyPhase } from "@/lib/buddyStates";
 import { idleLineFor, thinkingLineFor, leadLineFor } from "@/lib/lines";
@@ -28,6 +29,7 @@ export default function Home() {
   const [custom, setCustom] = useState<Activity[]>([]);
   const [useStarter, setUseStarter] = useState(true);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [stats, setStats] = useState<Stats>({}); // what you did and skipped (Step 8c)
   const [view, setView] = useState<"home" | "mine" | "projects">("home");
   const [now, setNow] = useState<Date | null>(null); // set after the page loads
   const [tick, setTick] = useState(0); // counts up so the waiting line changes
@@ -50,6 +52,7 @@ export default function Home() {
       setCustom(saved.customActivities);
       setUseStarter(saved.useStarter);
       setProjects(saved.projects);
+      setStats(saved.stats);
     }
     setNow(new Date());
     setTick(Math.floor(Math.random() * 1000)); // start on a different line each visit
@@ -59,8 +62,8 @@ export default function Home() {
   // After that: save whenever something saved changes
   useEffect(() => {
     if (!loaded) return;
-    saveState({ moodId, recentIds, customActivities: custom, useStarter, projects });
-  }, [loaded, moodId, recentIds, custom, useStarter, projects]);
+    saveState({ moodId, recentIds, customActivities: custom, useStarter, projects, stats });
+  }, [loaded, moodId, recentIds, custom, useStarter, projects, stats]);
 
   // While the buddy is just waiting, change its line every 8 seconds
   useEffect(() => {
@@ -76,7 +79,13 @@ export default function Home() {
     return () => timers.current.forEach(clearTimeout);
   }, []);
 
+  // The button calls this. (decideNow takes the stats as an argument so that
+  // "Skip" can use the skip it just recorded, before React has updated `stats`.)
   function handleDecide() {
+    decideNow(stats);
+  }
+
+  function decideNow(learned: Stats) {
     if (phase === "thinking") return;
     timers.current.forEach(clearTimeout);
     setDoneNote("");
@@ -89,6 +98,7 @@ export default function Home() {
         recentIds,
         pool: buildPool(custom, useStarter, stepActivities(projects, new Date())),
         tuning: mood.tuning,
+        stats: learned,
       });
       setActivity(pick);
       setLeadText(leadLineFor(moodId));
@@ -110,6 +120,7 @@ export default function Home() {
   function deleteActivity(id: string) {
     setCustom((list) => list.filter((x) => x.id !== id));
     setRecentIds((ids) => ids.filter((x) => x !== id));
+    setStats((s) => forget(s, id));
   }
 
   // "I did it" on a picked project step: tick it off and say well done
@@ -127,6 +138,23 @@ export default function Home() {
     setDoneNote("Nice! ✅ One step closer.");
     const t = setTimeout(() => setDoneNote(""), 6000);
     timers.current.push(t);
+  }
+
+  // "I did it" on a normal activity: remember it, so similar picks come up more
+  function finishActivity(a: Activity) {
+    if (a.stepOf) return finishStep(a);
+    if (canTrack(a.id)) setStats((s) => record(s, a.id, "done"));
+    setActivity(null);
+    setDoneNote("Nice! ✅ Noted. I'll suggest this one more often.");
+    const t = setTimeout(() => setDoneNote(""), 6000);
+    timers.current.push(t);
+  }
+
+  // "Skip": remember it, then pick something else straight away
+  function skipActivity(a: Activity) {
+    const next = canTrack(a.id) ? record(stats, a.id, "skipped") : stats;
+    setStats(next);
+    decideNow(next);
   }
 
   function saveProject(p: Project) {
@@ -158,6 +186,8 @@ export default function Home() {
         onSave={saveActivity}
         onDelete={deleteActivity}
         onToggleStarter={setUseStarter}
+        stats={stats}
+        onForgetLearning={() => setStats({})}
         onClose={() => setView("home")}
       />
     );
@@ -220,13 +250,21 @@ export default function Home() {
           )}
           <p className="text-lg leading-snug">{bubbleMain}</p>
         </div>
-        {activity?.stepOf && phase !== "thinking" && !doneNote && (
-          <button
-            onClick={() => finishStep(activity)}
-            className="min-h-12 rounded-card bg-surface px-6 font-semibold shadow-sm"
-          >
-            ✅ I did it
-          </button>
+        {activity && phase !== "thinking" && !doneNote && (
+          <div className="flex gap-3">
+            <button
+              onClick={() => finishActivity(activity)}
+              className="min-h-12 rounded-card bg-surface px-6 font-semibold shadow-sm"
+            >
+              ✅ I did it
+            </button>
+            <button
+              onClick={() => skipActivity(activity)}
+              className="min-h-12 rounded-card bg-surface px-6 font-medium shadow-sm"
+            >
+              ⏭ Skip
+            </button>
+          </div>
         )}
       </section>
 
