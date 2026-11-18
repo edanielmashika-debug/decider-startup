@@ -7,6 +7,7 @@ import MoodPicker from "@/components/MoodPicker";
 import MyActivities from "@/components/MyActivities";
 import Projects from "@/components/Projects";
 import { useIdleColor } from "@/hooks/useIdleColor";
+import { usePwa } from "@/hooks/usePwa";
 import { MOODS, DEFAULT_MOOD, type MoodId } from "@/lib/moods";
 import { decide } from "@/lib/decide";
 import type { Activity } from "@/lib/activities";
@@ -22,6 +23,7 @@ import { sentenceFor, speak, stopSpeaking, unlockSpeech, voiceSupported } from "
 
 export default function Home() {
   useIdleColor();
+  const { canInstall, install } = usePwa(); // installable app (Step 10)
   const [moodId, setMoodId] = useState<MoodId>(DEFAULT_MOOD);
   const [activity, setActivity] = useState<Activity | null>(null);
   const [recentIds, setRecentIds] = useState<string[]>([]);
@@ -262,6 +264,7 @@ export default function Home() {
             voiceOk
               ? { icon: voiceOn ? "🔊" : "🔇", label: "Buddy voice", hint: voiceOn ? "on" : "off", onSelect: toggleVoice }
               : { icon: "🔇", label: "Buddy voice", hint: "not on this phone", disabled: true },
+            ...(canInstall ? [{ icon: "📲", label: "Install app", hint: "add to home", onSelect: install }] : []),
             { icon: "⏰", label: "Reminders", hint: "soon", disabled: true },
           ]}
         />
