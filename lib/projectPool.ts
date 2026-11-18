@@ -1,7 +1,7 @@
 import type { Activity } from "@/lib/activities";
 import { TIMES } from "@/lib/activities";
 import type { Project } from "@/lib/projects";
-import { planProject, todaysChunks, type Pressure } from "@/lib/planner";
+import { planProject, progressOf, todaysChunks, type Pressure } from "@/lib/planner";
 
 // How much more likely today's steps are to be picked, by how pressed the project is.
 // Steps also get priority High once the deadline is close (see below).
@@ -36,4 +36,22 @@ export function stepActivities(projects: Project[], today: Date): Activity[] {
     }
   }
   return out;
+}
+
+// Where a picked project step stands: its project, which step it is, and how much is left.
+// Shown in small print under the suggestion. Null if the project or step no longer exists.
+export type StepProgress = { title: string; emoji: string; index: number; total: number; percentLeft: number };
+
+export function stepProgress(projects: Project[], ref: { projectId: string; chunkId: string }): StepProgress | null {
+  const p = projects.find((x) => x.id === ref.projectId);
+  if (!p) return null;
+  const index = p.chunks.findIndex((c) => c.id === ref.chunkId);
+  if (index < 0) return null;
+  return {
+    title: p.title,
+    emoji: p.emoji,
+    index: index + 1,
+    total: p.chunks.length,
+    percentLeft: 100 - Math.round(progressOf(p) * 100),
+  };
 }

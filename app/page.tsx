@@ -12,7 +12,7 @@ import { decide } from "@/lib/decide";
 import type { Activity } from "@/lib/activities";
 import type { Project } from "@/lib/projects";
 import { buildPool } from "@/lib/pool";
-import { stepActivities } from "@/lib/projectPool";
+import { stepActivities, stepProgress } from "@/lib/projectPool";
 import { topAlert } from "@/lib/planner";
 import { canTrack, forget, record, type Stats } from "@/lib/learn";
 import { loadState, saveState } from "@/lib/storage";
@@ -81,7 +81,16 @@ export default function Home() {
 
   // The button calls this. (decideNow takes the stats as an argument so that
   // "Skip" can use the skip it just recorded, before React has updated `stats`.)
+  // Pressing "Decide for me" again while a suggestion is still showing (you did not tap
+  // "I did it") counts as a skip of that suggestion. (A-014)
   function handleDecide() {
+    if (phase === "thinking") return;
+    if (activity && canTrack(activity.id)) {
+      const next = record(stats, activity.id, "skipped");
+      setStats(next);
+      decideNow(next);
+      return;
+    }
     decideNow(stats);
   }
 
@@ -207,6 +216,9 @@ export default function Home() {
     bubbleMain = now ? idleLineFor(moodId, now, tick) : mood.line;
   }
 
+  // Small print under a suggested project step: which step, how much is left (A-015)
+  const progress = activity?.stepOf ? stepProgress(projects, activity.stepOf) : null;
+
   // The most pressing project deadline (behind, overdue, or tight and close)
   const alert = loaded ? topAlert(projects, new Date()) : null;
 
@@ -249,6 +261,11 @@ export default function Home() {
             </p>
           )}
           <p className="text-lg leading-snug">{bubbleMain}</p>
+          {progress && phase !== "thinking" && !doneNote && (
+            <p className="mt-2 text-xs opacity-60">
+              {progress.emoji} Step {progress.index} of {progress.total} · {progress.percentLeft}% left
+            </p>
+          )}
         </div>
         {activity && phase !== "thinking" && !doneNote && (
           <div className="flex gap-3">
