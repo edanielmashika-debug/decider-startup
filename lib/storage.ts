@@ -14,6 +14,7 @@ export type SavedState = {
   useStarter: boolean; // also pick from the starter list?
   projects: Project[]; // big tasks split into steps (Step 8d)
   stats: Stats; // what you did and skipped, per activity id (Step 8c)
+  voiceOn: boolean; // does the buddy speak its picks out loud? (Step 9, off by default)
 };
 
 // Reads what was saved. Returns null when nothing usable is there.
@@ -67,7 +68,10 @@ export function loadState(): SavedState | null {
 
     const stats = sanitizeStats(data?.stats, known);
 
-    return { moodId, recentIds, customActivities, useStarter, projects, stats };
+    // voice (Step 9): only a real true turns it on, so old data stays quiet
+    const voiceOn = data?.voiceOn === true;
+
+    return { moodId, recentIds, customActivities, useStarter, projects, stats, voiceOn };
   } catch {
     return null; // blocked storage or corrupt data: just start fresh
   }

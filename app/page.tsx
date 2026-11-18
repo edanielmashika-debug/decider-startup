@@ -18,6 +18,7 @@ import { canTrack, forget, record, type Stats } from "@/lib/learn";
 import { loadState, saveState } from "@/lib/storage";
 import { faceForState, type BuddyPhase } from "@/lib/buddyStates";
 import { idleLineFor, thinkingLineFor, leadLineFor } from "@/lib/lines";
+import { sentenceFor, speak, stopSpeaking, unlockSpeech, voiceSupported } from "@/lib/voice";
 
 export default function Home() {
   useIdleColor();
@@ -30,6 +31,8 @@ export default function Home() {
   const [useStarter, setUseStarter] = useState(true);
   const [projects, setProjects] = useState<Project[]>([]);
   const [stats, setStats] = useState<Stats>({}); // what you did and skipped (Step 8c)
+  const [voiceOn, setVoiceOn] = useState(false); // does the buddy speak its picks? (Step 9)
+  const [voiceOk, setVoiceOk] = useState(false); // can this phone speak at all?
   const [view, setView] = useState<"home" | "mine" | "projects">("home");
   const [now, setNow] = useState<Date | null>(null); // set after the page loads
   const [tick, setTick] = useState(0); // counts up so the waiting line changes
@@ -53,7 +56,9 @@ export default function Home() {
       setUseStarter(saved.useStarter);
       setProjects(saved.projects);
       setStats(saved.stats);
+      setVoiceOn(saved.voiceOn);
     }
+    setVoiceOk(voiceSupported());
     setNow(new Date());
     setTick(Math.floor(Math.random() * 1000)); // start on a different line each visit
     setLoaded(true);
@@ -62,8 +67,8 @@ export default function Home() {
   // After that: save whenever something saved changes
   useEffect(() => {
     if (!loaded) return;
-    saveState({ moodId, recentIds, customActivities: custom, useStarter, projects, stats });
-  }, [loaded, moodId, recentIds, custom, useStarter, projects, stats]);
+    saveState({ moodId, recentIds, customActivities: custom, useStarter, projects, stats, voiceOn });
+  }, [loaded, moodId, recentIds, custom, useStarter, projects, stats, voiceOn]);
 
   // While the buddy is just waiting, change its line every 8 seconds
   useEffect(() => {
@@ -76,7 +81,10 @@ export default function Home() {
   }, [loaded, activity, phase, view]);
 
   useEffect(() => {
-    return () => timers.current.forEach(clearTimeout);
+    return () => {
+      timers.current.forEach(clearTimeout);
+      stopSpeaking(); // leaving the page: be quiet
+    };
   }, []);
 
   // The button calls this. (decideNow takes the stats as an argument so that
@@ -96,6 +104,8 @@ export default function Home() {
 
   function decideNow(learned: Stats) {
     if (phase === "thinking") return;
+    stopSpeaking(); // a new pick cuts off the old one
+    if (voiceOn) unlockSpeech(); // runs inside the tap, so the phone allows the speech that follows
     timers.current.forEach(clearTimeout);
     setDoneNote("");
     setThinkingText(thinkingLineFor(moodId));
@@ -109,8 +119,10 @@ export default function Home() {
         tuning: mood.tuning,
         stats: learned,
       });
+      const lead = leadLineFor(moodId);
       setActivity(pick);
-      setLeadText(leadLineFor(moodId));
+      setLeadText(lead);
+      if (voiceOn) speak(sentenceFor(lead, `${pick.emoji} ${pick.text}`), moodId);
       setRecentIds((ids) => [...ids, pick.id].slice(-10));
       setPhase("excited");
 
@@ -134,6 +146,7 @@ export default function Home() {
 
   // "I did it" on a picked project step: tick it off and say well done
   function finishStep(a: Activity) {
+    stopSpeaking();
     const ref = a.stepOf;
     if (!ref) return;
     setProjects((list) =>
@@ -152,6 +165,7 @@ export default function Home() {
   // "I did it" on a normal activity: remember it, so similar picks come up more
   function finishActivity(a: Activity) {
     if (a.stepOf) return finishStep(a);
+    stopSpeaking();
     if (canTrack(a.id)) setStats((s) => record(s, a.id, "done"));
     setActivity(null);
     setDoneNote("Nice! ✅ Noted. I'll suggest this one more often.");
@@ -164,6 +178,18 @@ export default function Home() {
     const next = canTrack(a.id) ? record(stats, a.id, "skipped") : stats;
     setStats(next);
     decideNow(next);
+  }
+
+  // Menu item: turn the buddy voice on or off. Turning it on says a short hello, so you
+  // can hear it works (this runs inside the tap, so the phone allows it).
+  function toggleVoice() {
+    if (voiceOn) {
+      stopSpeaking();
+      setVoiceOn(false);
+    } else {
+      setVoiceOn(true);
+      speak("Hi! I can talk now.", moodId);
+    }
   }
 
   function saveProject(p: Project) {
@@ -233,6 +259,9 @@ export default function Home() {
           items={[
             { icon: "✏️", label: "My activities", onSelect: () => setView("mine") },
             { icon: "📋", label: "Projects", onSelect: () => setView("projects") },
+            voiceOk
+              ? { icon: voiceOn ? "🔊" : "🔇", label: "Buddy voice", hint: voiceOn ? "on" : "off", onSelect: toggleVoice }
+              : { icon: "🔇", label: "Buddy voice", hint: "not on this phone", disabled: true },
             { icon: "⏰", label: "Reminders", hint: "soon", disabled: true },
           ]}
         />
