@@ -66,3 +66,17 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+// Tapping a reminder notification (Step 10b): bring the app to the front, or open it.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    (async () => {
+      const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const c of all) {
+        if ("focus" in c) return c.focus();
+      }
+      return self.clients.openWindow("/");
+    })(),
+  );
+});

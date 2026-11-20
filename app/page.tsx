@@ -6,6 +6,7 @@ import MenuButton from "@/components/MenuButton";
 import MoodPicker from "@/components/MoodPicker";
 import MyActivities from "@/components/MyActivities";
 import Projects from "@/components/Projects";
+import Reminders from "@/components/Reminders";
 import { useIdleColor } from "@/hooks/useIdleColor";
 import { usePwa } from "@/hooks/usePwa";
 import { MOODS, DEFAULT_MOOD, type MoodId } from "@/lib/moods";
@@ -19,6 +20,7 @@ import { canTrack, forget, record, type Stats } from "@/lib/learn";
 import { loadState, saveState } from "@/lib/storage";
 import { faceForState, type BuddyPhase } from "@/lib/buddyStates";
 import { idleLineFor, thinkingLineFor, leadLineFor } from "@/lib/lines";
+import { DEFAULT_REMINDERS, inActiveHours, nextDueAt, notificationText, showPickNotification, type ReminderSettings } from "@/lib/reminders";
 import { sentenceFor, speak, stopSpeaking, unlockSpeech, voiceSupported } from "@/lib/voice";
 
 export default function Home() {
@@ -35,7 +37,10 @@ export default function Home() {
   const [stats, setStats] = useState<Stats>({}); // what you did and skipped (Step 8c)
   const [voiceOn, setVoiceOn] = useState(false); // does the buddy speak its picks? (Step 9)
   const [voiceOk, setVoiceOk] = useState(false); // can this phone speak at all?
-  const [view, setView] = useState<"home" | "mine" | "projects">("home");
+  const [reminders, setReminders] = useState<ReminderSettings>({ ...DEFAULT_REMINDERS }); // Step 10b
+  const lastAuto = useRef(0); // when the buddy last decided on its own
+  const autoRef = useRef<() => boolean>(() => false);
+  const [view, setView] = useState<"home" | "mine" | "projects" | "reminders">("home");
   const [now, setNow] = useState<Date | null>(null); // set after the page loads
   const [tick, setTick] = useState(0); // counts up so the waiting line changes
   const [thinkingText, setThinkingText] = useState("");
@@ -59,6 +64,7 @@ export default function Home() {
       setProjects(saved.projects);
       setStats(saved.stats);
       setVoiceOn(saved.voiceOn);
+      setReminders(saved.reminders);
     }
     setVoiceOk(voiceSupported());
     setNow(new Date());
@@ -69,8 +75,8 @@ export default function Home() {
   // After that: save whenever something saved changes
   useEffect(() => {
     if (!loaded) return;
-    saveState({ moodId, recentIds, customActivities: custom, useStarter, projects, stats, voiceOn });
-  }, [loaded, moodId, recentIds, custom, useStarter, projects, stats, voiceOn]);
+    saveState({ moodId, recentIds, customActivities: custom, useStarter, projects, stats, voiceOn, reminders });
+  }, [loaded, moodId, recentIds, custom, useStarter, projects, stats, voiceOn, reminders]);
 
   // While the buddy is just waiting, change its line every 8 seconds
   useEffect(() => {
@@ -133,6 +139,63 @@ export default function Home() {
     }, 900);
     timers.current = [thinkTimer];
   }
+
+  // Auto-decide (Step 10b): the buddy picks for you on its own. It does not count as a skip.
+  // Returns true when it decided, false when it could not right now (it tries again soon).
+  function autoDecide(): boolean {
+    if (phase === "thinking") return false;
+    const hidden = document.visibilityState !== "visible";
+    if (!hidden && view !== "home") return false; // not while you are in another screen
+    timers.current.forEach(clearTimeout);
+    setDoneNote("");
+    const pick = decide({
+      now: new Date(),
+      recentIds,
+      pool: buildPool(custom, useStarter, stepActivities(projects, new Date())),
+      tuning: mood.tuning,
+      stats,
+    });
+    const lead = leadLineFor(moodId);
+    setActivity(pick);
+    setLeadText(lead);
+    setRecentIds((ids) => [...ids, pick.id].slice(-10));
+    setPhase("excited");
+    timers.current = [setTimeout(() => setPhase("idle"), 2500)];
+    if (hidden) {
+      if (reminders.notify) {
+        const n = notificationText(lead, `${pick.emoji} ${pick.text}`);
+        void showPickNotification(n.title, n.body);
+      }
+    } else if (voiceOn) {
+      speak(sentenceFor(lead, `${pick.emoji} ${pick.text}`), moodId);
+    }
+    return true;
+  }
+
+  // keep the timer's copy of autoDecide up to date with the latest state
+  useEffect(() => {
+    autoRef.current = autoDecide;
+  });
+
+  useEffect(() => {
+    if (!loaded || !reminders.on) return;
+    lastAuto.current = Date.now();
+    function check() {
+      const t = Date.now();
+      if (t < nextDueAt(lastAuto.current, reminders.everyMin)) return;
+      if (!inActiveHours(new Date(t), reminders.fromHour, reminders.toHour)) {
+        lastAuto.current = t; // quiet hours: skip this one
+        return;
+      }
+      if (autoRef.current()) lastAuto.current = t;
+    }
+    const id = setInterval(check, 15_000);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, [loaded, reminders.on, reminders.everyMin, reminders.fromHour, reminders.toHour]);
 
   function saveActivity(a: Activity) {
     setCustom((list) =>
@@ -215,6 +278,10 @@ export default function Home() {
     );
   }
 
+  if (view === "reminders") {
+    return <Reminders settings={reminders} onChange={setReminders} onClose={() => setView("home")} />;
+  }
+
   if (view === "mine") {
     return (
       <MyActivities
@@ -265,7 +332,7 @@ export default function Home() {
               ? { icon: voiceOn ? "🔊" : "🔇", label: "Buddy voice", hint: voiceOn ? "on" : "off", onSelect: toggleVoice }
               : { icon: "🔇", label: "Buddy voice", hint: "not on this phone", disabled: true },
             ...(canInstall ? [{ icon: "📲", label: "Install app", hint: "add to home", onSelect: install }] : []),
-            { icon: "⏰", label: "Reminders", hint: "soon", disabled: true },
+            { icon: "⏰", label: "Reminders", hint: reminders.on ? "on" : "off", onSelect: () => setView("reminders") },
           ]}
         />
       </header>

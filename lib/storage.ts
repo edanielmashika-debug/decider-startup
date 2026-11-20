@@ -2,6 +2,7 @@ import { MOODS, DEFAULT_MOOD, type MoodId } from "@/lib/moods";
 import { ACTIVITIES, MAX_CUSTOM, type Activity } from "@/lib/activities";
 import { sanitizeActivity } from "@/lib/pool";
 import { sanitizeStats, type Stats } from "@/lib/learn";
+import { DEFAULT_REMINDERS, sanitizeReminders, type ReminderSettings } from "@/lib/reminders";
 import { MAX_PROJECTS, sanitizeProject, type Project } from "@/lib/projects";
 
 // One key for everything the app remembers. "v1" lets us change the shape later.
@@ -15,6 +16,7 @@ export type SavedState = {
   projects: Project[]; // big tasks split into steps (Step 8d)
   stats: Stats; // what you did and skipped, per activity id (Step 8c)
   voiceOn: boolean; // does the buddy speak its picks out loud? (Step 9, off by default)
+  reminders: ReminderSettings; // auto-decide while the app is open (Step 10b, off by default)
 };
 
 // Reads what was saved. Returns null when nothing usable is there.
@@ -71,7 +73,10 @@ export function loadState(): SavedState | null {
     // voice (Step 9): only a real true turns it on, so old data stays quiet
     const voiceOn = data?.voiceOn === true;
 
-    return { moodId, recentIds, customActivities, useStarter, projects, stats, voiceOn };
+    // reminders (Step 10b): checked field by field, old data gets the defaults (off)
+    const reminders = data?.reminders === undefined ? { ...DEFAULT_REMINDERS } : sanitizeReminders(data.reminders);
+
+    return { moodId, recentIds, customActivities, useStarter, projects, stats, voiceOn, reminders };
   } catch {
     return null; // blocked storage or corrupt data: just start fresh
   }
